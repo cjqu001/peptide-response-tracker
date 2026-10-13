@@ -1,7 +1,7 @@
 # Habit Tracker: setup handoff for Claude
 
-Read this file first in every session. Tio's Claude wrote it on 2026-10-11, based on Tio's
-working habit tracker on his Synology NAS. This version is for a Windows PC.
+Read this file first in every session. Written on 2026-10-11, based on a
+working habit tracker on a Synology NAS. This version is for a Windows PC.
 
 ## Who you are helping
 - A beginner setting up their first self-hosted app. The goal is **understanding**, not copy and paste.
@@ -67,7 +67,7 @@ working habit tracker on his Synology NAS. This version is for a Windows PC.
 - From a phone or another PC, `localhost` will not work. LAN access needs extra WSL network setup. Leave it out of scope until the basics work.
 - Profiles: three "Name here" buttons plus "Example". Each is a separate habit list (e.g. one per person). Double-click a "Name here" button to type a name or initials; double-click again, clear the box, and press OK to remove the name. "Example" holds made-up demo data (2 weeks): water, walk, read, vitamin, BPC-157 and TB-500 doses, and a response journal (sleep, resting HR, HRV, energy, pain). Keep it as a reference for how habits, checkboxes, and the grid work. A profile is a view filter, not a login.
 
-## Lessons from Tio's setup
+## Lessons from the original setup
 - A missing bind-mount folder breaks the container quietly. Check that `data/` exists before `up`.
-- Back up `habits.db` before any code change. Tio keeps dated copies such as `habits_backup_YYYYMMDD.db`.
+- Back up `habits.db` before any code change. Keep dated copies such as `habits_backup_YYYYMMDD.db`.
 - Edit code with a plain text editor (Notepad works). Never edit `habits.db` while the container is running.

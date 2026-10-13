@@ -33,6 +33,10 @@ Collecting health data from other people for research is human subjects research
 4. Keep the database off the internet. The app has **no login and no encryption** and is not HIPAA (Health Insurance Portability and Accountability Act) compliant. Each participant should run their own local copy and share only the exported CSV through an approved channel.
 5. Record any adverse events through the channel your protocol specifies, not only in the tracker.
 
+## Live demo
+
+Try the interface with sample data at **https://cjqu001.github.io/peptide-response-tracker/**. The demo runs entirely in the browser and saves nothing. It opens on the Example profile, which shows peptide doses alongside a response journal. To rebuild it after changing the UI, run `python tools/build_static_demo.py`.
+
 ## Features
 
 - **Habit types:** Number (adds up through the day), Checkbox (done / missed / blank), Measurement (one decimal reading per day), and Dose (decimal amount with a unit such as mg, mcg, or units).
@@ -119,7 +123,8 @@ requirements.txt     flask, waitress
 Dockerfile           Container image
 docker-compose.yml   Port 5055, data volume, restart policy
 data/                SQLite database (created on first start; not committed)
-docs/                Setup checklist and assistant handoff notes
+docs/                Setup checklist, assistant notes, and the static demo (index.html)
+tools/               Demo builder and in-browser mock API
 ```
 
 ## Disclaimer

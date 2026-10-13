@@ -6,7 +6,7 @@ Tick each box in order. Estimated time: 45 to 60 minutes, including one reboot.
 - [ ] **Windows 10 (22H2) or Windows 11**, fully updated
 - [ ] **WSL2 + Ubuntu**: built into Windows, installed with one command (step C1)
 - [ ] **Docker Engine**: installed inside Ubuntu from https://docs.docker.com/engine/install/ubuntu/
-- [ ] **Habit tracker kit** (`habit_tracker_friend_kit.zip` from Tio), unzipped to `C:\Users\<you>\Downloads\habit_tracker_friend_kit`
+- [ ] **Habit tracker kit** (`habit_tracker_friend_kit.zip`), unzipped to `C:\Users\<you>\Downloads\habit_tracker_friend_kit`
 - [ ] **Do NOT install** Docker Desktop (it has paid tiers)
 
 ## B. Things you will type in or choose
