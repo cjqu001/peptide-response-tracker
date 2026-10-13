@@ -1,0 +1,21 @@
+# docker-compose.yml - Habit tracker on Synology NAS.
+# Deploy path suggestion: /volume1/docker/habit_tracker
+# Bring up:  docker compose up -d --build
+# Data file: /volume1/docker/habit_tracker/data/habits.db (persists across rebuilds)
+
+services:
+  habit-tracker:
+    build: .
+    container_name: habit-tracker
+    ports:
+      - "5055:5055"
+    volumes:
+      - ./data:/data
+      # Live-mount the app code so UI edits need only a container restart, not a rebuild.
+      # Comment these two lines out if you prefer code baked into the image.
+      - ./app.py:/app/app.py:ro
+      - ./serve.py:/app/serve.py:ro
+      - ./templates:/app/templates:ro
+    environment:
+      - HABITS_DB=/data/habits.db
+    restart: unless-stopped

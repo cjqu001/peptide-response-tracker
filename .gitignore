@@ -1,0 +1,11 @@
+# Participant data: never commit
+data/*.db
+*.db
+*.db-journal
+*.csv
+habits_backup_*
+
+# Python
+__pycache__/
+*.pyc
+.venv/

@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Habit Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#fdfdfb; --bg:#efefec; --ink:#22221f; --muted:#8d8d86;
+    --line:#c9c9c2; --line-soft:#e4e4de;
+  }
+  *{box-sizing:border-box; margin:0}
+  body{
+    font-family:"Atkinson Hyperlegible", sans-serif;
+    background:var(--bg); color:var(--ink);
+    padding:28px 16px 80px;
+  }
+  .sheet{
+    background:var(--paper); max-width:1240px; margin:0 auto;
+    border:1px solid var(--line); border-radius:4px;
+    box-shadow:0 2px 10px rgba(0,0,0,.06);
+    padding:28px 26px 22px;
+  }
+  .masthead{
+    display:flex; align-items:center; justify-content:space-between;
+    border-bottom:2px solid var(--ink); padding-bottom:12px; margin-bottom:18px;
+  }
+  h1{font-size:1.5rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase}
+  .month-box{
+    border:1.5px solid var(--ink); border-radius:3px; padding:4px 14px;
+    display:flex; align-items:center; gap:14px; font-size:1.05rem;
+  }
+  .masthead-right{display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:flex-end}
+  #editToggle{font-size:.85rem; padding:5px 12px}
+  #editToggle.on{background:var(--ink); color:#fff; border-color:var(--ink)}
+
+  /* Row controls are hidden until Edit mode is on */
+  .rowctl, .linkbtn, .archive, .danger{display:none}
+  body.edit-mode .rowctl{display:inline-flex}
+  body.edit-mode .linkbtn,
+  body.edit-mode .archive,
+  body.edit-mode .danger{display:inline}
+  .month-box button{border:none; background:none; font:inherit; cursor:pointer; color:var(--ink); padding:0 4px}
+  .month-name{font-style:italic; min-width:150px; text-align:center}
+  .month-box .today-btn{border:1.5px solid var(--ink); border-radius:3px; padding:1px 8px; margin-right:6px; font-size:.82rem}
+
+  table{border-collapse:collapse; width:100%}
+  th,td{border:1px solid var(--line-soft); text-align:center}
+  thead th{
+    font-weight:400; font-size:.7rem; color:var(--muted);
+    padding:4px 0; width:var(--daycol, 26px);
+  }
+  td.habit-cell .hname{cursor:pointer}
+  td.habit-cell .hname:hover{text-decoration:underline; text-decoration-color:var(--line)}
+  #colWidth{vertical-align:middle}
+  thead th.dow{font-size:.62rem; letter-spacing:.02em; padding:3px 0 1px; border-bottom:none; color:#a9a9a2}
+  thead th.dow.weekend{color:#a63d40}
+  tr.dow-row th{border-bottom:none}
+  thead th.habit-col, td.habit-cell{width:170px; text-align:left; padding-left:10px; border-left:none}
+  thead th.total-col, td.total-cell{width:70px; border-right:none}
+  td{height:30px; font-size:.85rem}
+  td.day{cursor:pointer; position:relative}
+  td.day:hover{background:#f4f4ee}
+  td.day:focus{outline:2px solid var(--ink); outline-offset:-2px; background:#f4f4ee}
+  td.day.dragsel{background:#e8eef5; box-shadow:inset 0 0 0 1px #7a9cc0}
+  #gridwrap.dragging{user-select:none; -webkit-user-select:none}
+  /* Today's column: soft gray band running the full height, black rails both sides.
+     The rails are inset box-shadows, NOT borders. Under border-collapse:collapse the
+     browser resolves each shared edge between neighbouring cells, and the left rail
+     loses that contest to the cell on its left. A box-shadow is painted on the cell
+     itself, so both rails always render. Do not "simplify" this back to border-left. */
+  th.today, td.today{
+    background:#e6e6e0;
+    box-shadow: inset 2px 0 0 0 var(--ink), inset -2px 0 0 0 var(--ink);
+  }
+  /* Header cells for today sit solid black with white text (reference layout). */
+  thead th.today{background:var(--ink); color:#fff; font-weight:700}
+  thead th.dow.today{background:var(--ink); color:#fff}
+  /* Keep hover/focus readable inside the gray band. */
+  td.day.today:hover{background:#dcdcd4}
+  td.day.today:focus{background:#dcdcd4}
+  td.day input{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:64px; height:26px; z-index:5;
+    border:none; background:#fffdf0;
+    font:inherit; font-size:.9rem; text-align:center; outline:2px solid var(--ink);
+    -moz-appearance:textfield;
+  }
+  td.day input::-webkit-outer-spin-button,
+  td.day input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0}
+  .quicklog{
+    display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end;
+    margin-top:20px; padding:12px 14px;
+    border:1.5px dashed var(--line); border-radius:3px;
+  }
+  .quicklog .ql-title{font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    font-size:.72rem; width:100%; color:var(--muted)}
+  .ql-item{display:flex; flex-direction:column; gap:2px}
+  .ql-item label{font-size:.78rem; color:var(--ink)}
+  .ql-item input{width:84px; padding:4px 8px; font-size:.9rem;
+    border:1px solid var(--line); border-radius:3px}
+  td.day.future{cursor:default; background:repeating-linear-gradient(45deg,transparent,transparent 4px,#f6f6f2 4px,#f6f6f2 5px); color:var(--muted)}
+  td.habit-cell{font-weight:400}
+  td.habit-cell .meta{display:block; font-weight:400; font-size:.72rem; color:var(--muted)}
+  td.total-cell{font-size:.85rem}
+  td.total-cell b{font-size:.95rem}
+  tr:hover td.habit-cell{text-decoration:underline; text-decoration-color:var(--line)}
+  .archive{border:none; background:none; color:var(--muted); font-size:.7rem; cursor:pointer; padding:0; margin-left:6px}
+  .linkbtn{border:none; background:none; color:var(--muted); font-size:.7rem; cursor:pointer; padding:0; margin-left:6px}
+  .linkbtn:hover{color:var(--ink); text-decoration:underline}
+  .danger{border:none; background:none; color:#a63d40; font-size:.7rem; cursor:pointer; padding:0; margin-left:6px}
+  /* NOTE: no `display` here on purpose. The Edit-mode rules near the top of this
+     stylesheet own visibility; setting display again would override them. */
+  .rowctl{flex-direction:column; vertical-align:middle; margin-right:6px; line-height:.7}
+  .rowctl .mv{border:none; background:none; cursor:pointer; color:var(--muted); font-size:.6rem; padding:0; height:9px}
+  .rowctl .mv:hover{color:var(--ink)}
+
+  .footer{
+    display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    margin-top:22px; padding-top:16px; border-top:1px solid var(--line-soft);
+  }
+  input,button.btn{font:inherit; font-size:.9rem; padding:6px 10px;
+    border:1px solid var(--line); border-radius:3px; background:#fff; color:var(--ink)}
+  button.btn{cursor:pointer}
+  button.btn.primary{background:var(--ink); color:#fff; border-color:var(--ink)}
+  .flash{font-size:.82rem; color:var(--muted); margin-top:8px; min-height:1.1em}
+  .empty{color:var(--muted); text-align:center; padding:50px 0; font-style:italic}
+
+  /* View toggle */
+  .view-tabs{display:inline-flex; border:1.5px solid var(--ink); border-radius:3px; overflow:hidden}
+  .view-tabs button{border:none; background:#fff; font:inherit; font-size:.82rem;
+    padding:5px 12px; cursor:pointer; color:var(--ink); border-left:1px solid var(--line)}
+  .view-tabs button:first-child{border-left:none}
+  .view-tabs button.on{background:var(--ink); color:#fff}
+
+  /* Year view cells */
+  td.ytd{font-size:.82rem; color:var(--ink)}
+
+  /* Profile tabs reuse .view-tabs styling */
+  #profileTabs button{min-width:36px; font-weight:700}
+  .totals-ctl{font-size:.8rem; color:var(--muted); display:flex; align-items:center; gap:4px}
+  .totals-ctl select{font:inherit; font-size:.8rem; padding:3px 6px; border:1px solid var(--line);
+    border-radius:3px; background:#fff; color:var(--ink)}
+  .collapsible{margin-top:14px; border:1px solid var(--line-soft); border-radius:4px; padding:2px 12px}
+  .collapsible > summary{cursor:pointer; font-size:.72rem; color:var(--muted); padding:6px 0;
+    user-select:none; font-weight:700; text-transform:uppercase; letter-spacing:.05em}
+  .hidden-panel{padding:6px 2px 8px; font-size:.82rem}
+  .hidden-panel .hp-title{font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+    font-size:.7rem; color:var(--muted); margin-right:8px}
+  .hidden-panel .hp-item{display:inline-block; margin:0 10px 4px 0}
+  .linkbtn2{border:none; background:none; color:#2f6f8f; cursor:pointer; font:inherit;
+    font-size:.78rem; text-decoration:underline; padding:0}
+  #dupBtn{margin-left:auto}
+
+  /* ---------- Chart views (Reps, Trend) ---------- */
+  .chart-ctl{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px}
+  .chart-ctl select{font:inherit; font-size:.9rem; padding:5px 8px; border:1px solid var(--line);
+    border-radius:3px; background:#fff; color:var(--ink)}
+  .chart-picks{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:.85rem; margin-bottom:10px}
+  .chart-picks label{display:inline-flex; align-items:center; gap:5px; cursor:pointer}
+  .chart-picks .sw{display:inline-block; width:10px; height:10px; border-radius:2px}
+  .chart-head .ch-k{font-size:.7rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+  .chart-head .ch-v{font-size:2rem; font-weight:700; line-height:1.1}
+  .chart-head .ch-v small{font-size:.95rem; font-weight:400; color:var(--muted); margin-left:4px}
+  .chart-head .ch-r{font-size:.82rem; color:var(--muted); margin-bottom:6px}
+  .chart-svg{width:100%; height:auto; display:block}
+  .chart-svg text{font-family:"Atkinson Hyperlegible", sans-serif; fill:var(--muted)}
+  body.chart-view .month-box{visibility:hidden}
+  .settings-row{display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:8px 0; font-size:.85rem}
+  .settings-row input{width:64px}
+  .settings-row select{font:inherit; font-size:.85rem; padding:5px 8px; border:1px solid var(--line); border-radius:3px}
+
+  /* Horizontal scroll wrapper keeps wide grids usable */
+  .grid-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch}
+
+  /* Sticky habit-name column so it stays visible while scrolling days */
+  thead th.habit-col, td.habit-cell{position:sticky; left:0; z-index:2; background:var(--paper)}
+  thead th.habit-col{z-index:3}
+
+  /* ---------- Mobile ---------- */
+  @media (max-width:640px){
+    body{padding:14px 8px 60px}
+    .sheet{padding:16px 12px 16px; border-radius:6px}
+    .masthead{flex-direction:column; align-items:stretch; gap:12px}
+    .masthead-right{flex-wrap:wrap; gap:8px; justify-content:space-between}
+    h1{font-size:1.15rem; text-align:center}
+    thead th.habit-col, td.habit-cell{width:104px; min-width:104px; font-size:.8rem; padding-left:6px}
+    thead th, td{width:34px; min-width:34px}
+    td{height:38px}                    /* taller touch targets */
+    td.day input{width:56px; height:34px; font-size:1rem}
+    .view-tabs button{padding:7px 14px; font-size:.9rem}
+    .month-box{justify-content:center; flex:1}
+    .quicklog .ql-item input{width:100%}
+  }
+  /* Print / Save as PDF: grid only, landscape, controls hidden */
+  .print-only{display:none}
+  @media print{
+    @page{size:landscape; margin:10mm}
+    *{-webkit-print-color-adjust:exact; print-color-adjust:exact}
+    body{background:#fff}
+    .masthead-right > *:not(.month-box), .month-box button,
+    .collapsible, .quicklog, .flash, #gridwrap > p{display:none !important}
+    .print-only{display:block; font-size:.8rem; color:#555; margin:6px 0}
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="masthead">
+    <h1>Habit Tracker</h1>
+    <div class="masthead-right">
+      <div class="view-tabs" id="profileTabs" title="Profile">
+        <button data-profile="CQ" onclick="setProfile('CQ')" ondblclick="renameProfile('CQ')" title="Double-click to edit or remove the name">Name here</button>
+        <button data-profile="TQ" onclick="setProfile('TQ')" ondblclick="renameProfile('TQ')" title="Double-click to edit or remove the name">Name here</button>
+        <button data-profile="P3" onclick="setProfile('P3')" ondblclick="renameProfile('P3')" title="Double-click to edit or remove the name">Name here</button>
+        <button data-profile="PX" onclick="setProfile('PX')" title="Example profile with sample data. Look around, then use your own profile.">Example</button>
+      </div>
+      <div class="view-tabs" id="viewTabs">
+        <button data-view="3day" onclick="setView('3day')" title="Last 3 days ending on the selected date">3 Day</button>
+        <button data-view="week" onclick="setView('week')">Week</button>
+        <button data-view="month" class="on" onclick="setView('month')">Month</button>
+        <button data-view="year" onclick="setView('year')">Year</button>
+        <button data-view="reps" onclick="setView('reps')" title="Total reps of selected habits">Reps</button>
+        <button data-view="trend" onclick="setView('trend')" title="Trend line for one habit or BMI">Trend</button>
+      </div>
+      <label class="totals-ctl">Totals
+        <select id="totalsSel" onchange="setTotals(this.value)">
+          <option value="today">Today</option>
+          <option value="d7">Past 7 days</option>
+          <option value="d30">Past 30 days</option>
+          <option value="year">2026</option>
+          <option value="lifetime">Lifetime</option>
+        </select>
+      </label>
+      <label class="totals-ctl" title="Day column width">Width
+        <input type="range" id="colWidth" min="18" max="64" step="2" oninput="setColWidth(this.value)">
+      </label>
+      <button id="editToggle" class="btn" onclick="toggleEdit()">Edit</button>
+      <button class="btn" onclick="exportCsv()" title="Download this profile's daily values as CSV">CSV</button>
+      <button class="btn" onclick="window.print()" title="Print or save the current view as PDF">PDF</button>
+      <div class="month-box">
+        <button class="today-btn" onclick="goToday()" title="Jump to today">Today</button>
+        <button onclick="shiftPeriod(-1)" aria-label="Previous">&lsaquo;</button>
+        <span class="month-name" id="periodLabel"></span>
+        <button onclick="shiftPeriod(1)" aria-label="Next">&rsaquo;</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="printMeta" class="print-only"></div>
+  <div id="gridwrap"></div>
+
+  <details id="newHabitBox" class="collapsible">
+    <summary>New habit</summary>
+    <form class="footer" onsubmit="return addHabit(event)">
+      <input id="f-name" placeholder="New habit (e.g. Pushups)" required>
+      <select id="f-type" class="btn" title="How you log this habit"
+        onchange="const u = document.getElementById('f-unit'); u.style.display = (this.value === 'measure' || this.value === 'dose') ? '' : 'none'; u.placeholder = this.value === 'dose' ? 'unit (mg, mcg, units)' : 'unit (lbs, in)'">
+        <option value="number">Number (reps, adds up)</option>
+        <option value="check">Checkbox</option>
+        <option value="measure">Measurement (weight, waist, decimals)</option>
+        <option value="dose">Dose (peptides, meds: amount per day, decimals)</option>
+      </select>
+      <input id="f-unit" placeholder="unit (lbs, in)" style="display:none; width:120px">
+      <button class="btn primary">Add habit</button>
+    </form>
+  </details>
+
+  <details id="settingsBox" class="collapsible">
+    <summary>Height &amp; BMI settings</summary>
+    <div class="settings-row">
+      Height
+      <input id="s-ft" type="number" min="0" max="8" placeholder="ft"> ft
+      <input id="s-in" type="number" min="0" max="11.9" step="0.1" placeholder="in"> in
+      &nbsp; Weight measurement
+      <select id="s-weight"></select>
+      <button class="btn primary" type="button" onclick="saveSettings()">Save</button>
+      <span id="s-bmi" style="color:var(--muted)"></span>
+    </div>
+    <p style="font-size:.75rem;color:var(--muted);padding-bottom:8px">
+      BMI = weight &divide; height&sup2; (lbs uses 703 &times; lb &divide; in&sup2;; kg uses kg &divide; m&sup2;).
+      Pick <b>BMI (calculated)</b> in the Trend view to see it over time.</p>
+  </details>
+
+  <details id="archivedBox" class="collapsible">
+    <summary>Archived habits</summary>
+    <div id="hiddenPanel" class="hidden-panel"></div>
+  </details>
+
+  <div class="flash" id="flash"></div>
+</div>
+
+<script>
+const now = new Date();
+let cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate());  // reference date
+let view = localStorage.getItem("ht_view") || (window.matchMedia("(max-width:640px)").matches ? "week" : "month");
+const MONTHS = ["January","February","March","April","May","June",
+                "July","August","September","October","November","December"];
+const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+// --- Profile + totals-window state (remembered between visits) ---
+let profile = localStorage.getItem("ht_profile") || "CQ";
+let totalsWindow = localStorage.getItem("ht_totals") || "year";
+window._stats = {};   // {habitId: {today,d7,d30,year,lifetime,streak}}
+
+async function fetchStats(){
+  const res = await fetch(`/api/stats?profile=${encodeURIComponent(profile)}`);
+  window._stats = (await res.json()).stats || {};
+  return window._stats;
+}
+function statVal(hid){
+  const s = window._stats[hid];
+  if(!s) return 0;
+  const v = s[totalsWindow];
+  return (v === null || v === undefined) ? (isMeasure(hid) ? "&ndash;" : 0) : v;   // measure w/o data shows a dash
+}
+function streakVal(hid){ const s = window._stats[hid]; return s ? (s.streak || 0) : 0; }
+function isMeasure(hid){ const h = (window._habits || []).find(x => x.id === hid); return !!h && h.input_type === "measure"; }
+// Measurements show an average ("avg lbs"); everything else shows a sum.
+function unitLabel(h){ return h.input_type === "measure" ? `avg ${h.unit}` : h.unit; }
+
+function totalCellHTML(h){
+  return `<td class="total-cell" id="total-${h.id}"><b>${statVal(h.id)}</b>` +
+         `<br><span style="font-size:.68rem;color:var(--muted)">${unitLabel(h)}</span></td>`;
+}
+// Refresh totals + streaks in place from the current window._stats (no server call).
+function renderTotals(){
+  for(const h of (window._habits || [])){
+    const t = document.getElementById("total-" + h.id);
+    if(t) t.innerHTML = `<b>${statVal(h.id)}</b>` +
+      `<br><span style="font-size:.68rem;color:var(--muted)">${unitLabel(h)}</span>`;
+    const s = document.getElementById("streak-" + h.id);
+    if(s) s.textContent = streakVal(h.id) ? `best streak: ${streakVal(h.id)}` : "";
+  }
+}
+async function refreshStats(){ await fetchStats(); renderTotals(); }
+
+function exportCsv(){
+  window.location = "/api/export/csv?profile=" + encodeURIComponent(profile);
+}
+window.addEventListener("beforeprint", () => {
+  const lbl = document.getElementById("periodLabel");
+  document.getElementById("printMeta").textContent =
+    "Profile " + profileLabel(profile) + " | " + view + " view | " + (lbl ? lbl.textContent : "") +
+    " | printed " + new Date().toLocaleDateString();
+});
+// ----- Editable profile names (stored in the DB settings table, key display_name) -----
+let profileNames = {};
+function profileLabel(p){ return p === "PX" ? "Example" : (profileNames[p] || "Name here"); }
+function paintProfileNames(){
+  document.querySelectorAll("#profileTabs button[ondblclick]")
+    .forEach(b => b.textContent = profileLabel(b.dataset.profile));
+}
+async function loadProfileNames(){
+  try{ profileNames = await (await fetch("/api/profile-names")).json(); }catch(e){ profileNames = {}; }
+  paintProfileNames();
+}
+async function renameProfile(p){
+  const name = prompt("Name or initials for this profile.\nLeave blank and press OK to remove the name.", profileNames[p] || "");
+  if(name === null) return;
+  const trimmed = name.trim().slice(0, 20);
+  await fetch("/api/settings", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({profile: p, display_name: trimmed})});
+  if(trimmed) profileNames[p] = trimmed; else delete profileNames[p];
+  paintProfileNames();
+}
+function setProfile(p){
+  profile = p;
+  localStorage.setItem("ht_profile", p);
+  document.querySelectorAll("#profileTabs button")
+    .forEach(b => b.classList.toggle("on", b.dataset.profile === p));
+  invalidateCache();
+  load();
+}
+function setTotals(w){
+  totalsWindow = w;
+  localStorage.setItem("ht_totals", w);
+  renderTotals();
+}
+
+// Checkbox habits render a tick / dash instead of a number.
+function checkMark(v, missed, color){
+  if(v > 0) return `<span style="color:${color};font-weight:700">✓</span>`;
+  if(missed) return `<span style="color:var(--muted)">–</span>`;
+  return "";
+}
+
+async function toggleCheck(td, id, dateKey, unit){
+  if(window._suppressClick) return;
+  if(td.classList.contains("future")) return;
+  const done = td.textContent.indexOf("✓") !== -1;
+  const payload = done ? {value:0, missed:false, clear:true} : {value:1, missed:false};
+  const ok = await setDay(id, payload, dateKey, unit);
+  if(!ok) return;
+  td.innerHTML = checkMark(payload.value, false, cellColor(id));
+  refreshStats();
+}
+function cellKeyCheck(e, td, id, dateKey, unit){
+  if(e.key === "Tab"){
+    e.preventDefault();
+    const n = navTarget(td, e.shiftKey ? "left" : "right"); if(n) n.focus();
+  } else if(e.key === "Enter"){
+    e.preventDefault();
+    const n = navTarget(td, e.shiftKey ? "up" : "down"); if(n) n.focus();
+  } else if(e.key === " "){
+    e.preventDefault();
+    toggleCheck(td, id, dateKey, unit);
+  }
+}
+
+// Copy yesterday's logged values onto today for every visible habit (overwrites today).
+async function duplicateYesterday(){
+  const t = new Date(); t.setDate(t.getDate() - 1);
+  const yKey = t.getFullYear() + "-" + pad(t.getMonth()+1) + "-" + pad(t.getDate());
+  const today = isoToday();
+  let n = 0;
+  for(const h of (window._habits || [])){
+    const has = h.daily && Object.prototype.hasOwnProperty.call(h.daily, yKey);
+    if(!has) continue;                            // blank yesterday -> skip
+    const wasMissed = h.missed && Object.prototype.hasOwnProperty.call(h.missed, yKey);
+    const payload = wasMissed ? {value:0, missed:true} : {value:h.daily[yKey], missed:false};
+    if(await setDay(h.id, payload, today, h.unit)) n++;
+  }
+  document.getElementById("flash").textContent = n
+    ? `Copied yesterday to today for ${n} habit(s).`
+    : "Nothing logged yesterday to copy.";
+  invalidateCache();
+  load();
+}
+
+// Hidden (archived) habits manager, shown only in Edit mode.
+async function loadHidden(){
+  const panel = document.getElementById("hiddenPanel");
+  if(!panel) return;
+  const res = await fetch(`/api/habits/archived?profile=${encodeURIComponent(profile)}`);
+  const rows = await res.json();
+  if(!rows.length){
+    panel.innerHTML = `<span class="hp-title">Archived habits</span>` +
+      `<span style="color:var(--muted)">none</span>`;
+    return;
+  }
+  panel.innerHTML = `<span class="hp-title">Archived habits</span>` + rows.map(r =>
+    `<span class="hp-item">${r.name} ` +
+    `<button class="linkbtn2" onclick="unhide(${r.id})">restore</button></span>`).join("");
+}
+async function unhide(id){
+  await fetch(`/api/habits/${id}/unarchive`, {method:"POST"});
+  invalidateCache();
+  load();
+}
+
+function setView(v){
+  view = v;
+  localStorage.setItem("ht_view", v);          // remembered as the default next visit
+  document.querySelectorAll("#viewTabs button").forEach(b =>
+    b.classList.toggle("on", b.dataset.view === v));
+  load();
+}
+
+// Day-column width (zoom), remembered between visits.
+function setColWidth(px){
+  document.documentElement.style.setProperty("--daycol", px + "px");
+  localStorage.setItem("ht_colw", px);
+}
+
+// Jump the current view back to the period containing today.
+function goToday(){
+  const t = new Date();
+  cursor = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  load();
+}
+
+function shiftPeriod(d){
+  if(view === "3day"){ cursor.setDate(cursor.getDate() + d); }   // one day per click
+  else if(view === "week"){ cursor.setDate(cursor.getDate() + 7 * d); }
+  else if(view === "month"){ cursor.setMonth(cursor.getMonth() + d); }
+  else { cursor.setFullYear(cursor.getFullYear() + d); }
+  cursor = new Date(cursor);   // normalize
+  load();
+}
+
+// Monday-based start of the week containing the cursor.
+function weekStart(ref){
+  const d = new Date(ref);
+  const wd = (d.getDay() + 6) % 7;   // 0 = Monday
+  d.setDate(d.getDate() - wd);
+  return d;
+}
+
+function toggleEdit(){
+  const on = document.body.classList.toggle("edit-mode");
+  const btn = document.getElementById("editToggle");
+  btn.textContent = on ? "Done" : "Edit";
+  btn.classList.toggle("on", on);
+}
+
+function pad(n){ return String(n).padStart(2,"0"); }
+function isoToday(){
+  const t = new Date();
+  return t.getFullYear() + "-" + pad(t.getMonth()+1) + "-" + pad(t.getDate());
+}
+
+function cellMark(v, color){
+  if(v === "-") return `<span style="color:var(--muted);font-size:.9rem">&ndash;</span>`;
+  if(v === "" || v === null || v === undefined) return "";
+  return `<span style="color:${color};font-size:.85rem">${v}</span>`;   // 0 renders as "0"
+}
+
+// Build the editable day grid for an explicit list of ISO dates (Week or Month view).
+function buildDayGrid(habits, dates){
+  const today = isoToday();
+  const DOW = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+
+  let dowRow = `<tr class="dow-row"><th class="habit-col"></th>`;
+  let head = `<tr><th class="habit-col">Habit</th>`;
+  for(const key of dates){
+    const dt = new Date(key + "T00:00:00");
+    const wd = dt.getDay();
+    const dnum = dt.getDate();
+    const isTd = key === today;
+    const weekend = (wd === 0 || wd === 6) ? " weekend" : "";
+    dowRow += `<th class="dow${weekend}${isTd ? " today" : ""}">${DOW[wd]}</th>`;
+    head += `<th class="${isTd ? "today" : ""}">${dnum}</th>`;
+  }
+  dowRow += `<th class="total-col"></th></tr>`;
+  head += `<th class="total-col">Total</th></tr>`;
+
+  let rows = "";
+  for(const h of habits){
+    const isCheck = h.input_type === "check";
+    let cells = "";
+    for(const key of dates){
+      const has = Object.prototype.hasOwnProperty.call(h.daily, key);
+      const isMissed = has && h.missed && Object.prototype.hasOwnProperty.call(h.missed, key);
+      const v = has ? h.daily[key] : null;
+      const future = key > today;
+      const cls = "day" + (future ? " future" : "") + (key === today ? " today" : "");
+      let interactive = "", content = "", titleState = "";
+      if(isCheck){
+        titleState = (has && !isMissed && v > 0) ? "done" : (isMissed ? "missed" : "not logged");
+        content = checkMark((has && !isMissed) ? v : 0, isMissed, h.color);
+        interactive = future ? "" :
+          `tabindex="0" onclick="toggleCheck(this, ${h.id}, '${key}', '${h.unit}')" ` +
+          `onkeydown="cellKeyCheck(event, this, ${h.id}, '${key}', '${h.unit}')"`;
+      } else {
+        let editSeed, disp;
+        if(isMissed){ editSeed = "'-'"; disp = "-"; titleState = "missed"; }
+        else if(has){ editSeed = v; disp = v; titleState = `${v} ${h.unit}`; }   // v may be 0
+        else { editSeed = "''"; disp = ""; titleState = "not logged"; }
+        content = cellMark(disp, h.color);
+        interactive = future ? "" :
+          `tabindex="0" onclick="editCell(this, ${h.id}, '${key}', '${h.unit}', ${editSeed})" ` +
+          `onkeydown="cellKey(event, this, ${h.id}, '${key}', '${h.unit}', ${editSeed})"`;
+      }
+      cells += `<td class="${cls}" id="cell-${h.id}-${key}"
+        data-hid="${h.id}" data-date="${key}" data-unit="${h.unit}" data-type="${h.input_type}" ${interactive}
+        title="${key}: ${titleState}">${content}</td>`;
+    }
+    rows += `<tr>${habitCellHTML(h)}${cells}${totalCellHTML(h)}</tr>`;
+  }
+  return `<div class="grid-scroll"><table><thead>${dowRow}${head}</thead><tbody>${rows}</tbody></table></div>
+    <p style="font-size:.78rem;color:var(--muted);margin-top:8px">
+      Click a day, then type a number (0 is allowed and shows as 0), type &ndash; for a missed day,
+      or clear the box to erase it. Drag in any direction to copy one cell's value across days and habits.</p>`;
+}
+
+// Read-only monthly-totals summary for the cursor's year (Year view).
+function buildYearTable(habits){
+  const y = cursor.getFullYear();
+  let head = `<tr><th class="habit-col">Habit</th>`;
+  for(let m = 0; m < 12; m++) head += `<th>${MONTHS_SHORT[m]}</th>`;
+  head += `<th class="total-col">Year</th></tr>`;
+
+  let rows = "";
+  for(const h of habits){
+    const monthly = new Array(12).fill(0);
+    const counts = new Array(12).fill(0);            // days logged (for measurement averages)
+    let yearTotal = 0, yearCount = 0;
+    for(const [key, v] of Object.entries(h.daily)){
+      if(v > 0 && key.slice(0, 4) === String(y)){
+        const m = parseInt(key.slice(5, 7), 10) - 1;
+        monthly[m] += v; yearTotal += v; counts[m]++; yearCount++;
+      }
+    }
+    const meas = h.input_type === "measure";
+    const r1 = n => Math.round(n * 10) / 10;
+    let cells = "";
+    for(let m = 0; m < 12; m++){
+      const shown = meas ? (counts[m] ? r1(monthly[m] / counts[m]) : "") : (monthly[m] > 0 ? monthly[m] : "");
+      cells += `<td class="ytd">${shown}</td>`;
+    }
+    const yShown = meas ? (yearCount ? r1(yearTotal / yearCount) : "&ndash;") : yearTotal;
+    rows += `<tr>${habitCellHTML(h)}${cells}
+      <td class="total-cell"><b>${yShown}</b><br><span style="font-size:.68rem;color:var(--muted)">${unitLabel(h)}</span></td>
+    </tr>`;
+  }
+  return `<div class="grid-scroll"><table><thead>${head}</thead><tbody>${rows}</tbody></table></div>
+    <p style="font-size:.78rem;color:var(--muted);margin-top:8px">
+      Year view shows monthly totals (measurements show monthly averages). Switch to Week or Month to log or edit days.</p>`;
+}
+
+// Shared habit-name cell with the edit controls.
+function habitCellHTML(h){
+  const safe = h.name.replace(/'/g,"\\'");
+  return `<td class="habit-cell">
+    <span class="rowctl">
+      <button class="mv" title="Move up" onclick="moveHabit(${h.id},'up')">&#9650;</button>
+      <button class="mv" title="Move down" onclick="moveHabit(${h.id},'down')">&#9660;</button>
+    </span>
+    <span class="hname" ondblclick="renameHabit(${h.id}, '${safe}')" title="Double-click to rename">${h.name}</span>
+    <button class="linkbtn" onclick="renameHabit(${h.id}, '${safe}')">rename</button>
+    <button class="archive" onclick="removeHabit(${h.id}, '${safe}')">archive</button>
+    <button class="danger" onclick="deleteHabit(${h.id}, '${safe}')">delete</button>
+  </td>`;
+}
+
+// Fetch one year's habit data. Returns {habits:[...]}. Cached per year.
+const _yearCache = {};
+async function fetchYear(y){
+  const key = profile + ":" + y;
+  if(_yearCache[key]) return _yearCache[key];
+  const res = await fetch(`/api/year/${y}?profile=${encodeURIComponent(profile)}`);
+  const data = await res.json();
+  _yearCache[key] = data;
+  return data;
+}
+function invalidateCache(){ for(const k in _yearCache) delete _yearCache[k]; }
+
+// Merge daily maps across years (for a week spanning a year boundary).
+function mergeHabits(datasets){
+  const byId = {};
+  const order = [];
+  for(const ds of datasets){
+    for(const h of ds.habits){
+      if(!byId[h.id]){ byId[h.id] = {...h, daily:{...h.daily}, missed:{...(h.missed||{})}}; order.push(h.id); }
+      else { Object.assign(byId[h.id].daily, h.daily); Object.assign(byId[h.id].missed, h.missed||{}); }
+    }
+  }
+  return order.map(id => byId[id]);
+}
+
+function datesForView(){
+  const out = [];
+  if(view === "3day"){
+    // Two days before the cursor, then the cursor day itself.
+    for(let i = 2; i >= 0; i--){
+      const d = new Date(cursor); d.setDate(cursor.getDate() - i);
+      out.push(d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()));
+    }
+  } else if(view === "week"){
+    const start = weekStart(cursor);
+    for(let i = 0; i < 7; i++){
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      out.push(d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()));
+    }
+  } else if(view === "month"){
+    const y = cursor.getFullYear(), m = cursor.getMonth();
+    const n = new Date(y, m+1, 0).getDate();
+    for(let d = 1; d <= n; d++) out.push(`${y}-${pad(m+1)}-${pad(d)}`);
+  }
+  return out;
+}
+
+function periodLabel(){
+  if(view === "week" || view === "3day"){
+    let s, e;
+    if(view === "week"){ s = weekStart(cursor); e = new Date(s); e.setDate(s.getDate()+6); }
+    else { e = new Date(cursor); s = new Date(cursor); s.setDate(cursor.getDate()-2); }
+    const sameMonth = s.getMonth() === e.getMonth();
+    const left = `${MONTHS_SHORT[s.getMonth()]} ${s.getDate()}`;
+    const right = sameMonth ? `${e.getDate()}` : `${MONTHS_SHORT[e.getMonth()]} ${e.getDate()}`;
+    return `${left} \u2013 ${right}, ${e.getFullYear()}`;
+  }
+  if(view === "month") return `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}`;
+  if(view === "reps" || view === "trend") return "";
+  return `${cursor.getFullYear()}`;
+}
+
+async function load(){
+  document.body.classList.toggle("chart-view", view === "reps" || view === "trend");
+  document.getElementById("periodLabel").textContent = periodLabel();
+  await fetchStats();   // per-profile totals + streaks, ready before the grid renders
+  await loadSettings();
+
+  let habits;
+  if(view === "reps" || view === "trend"){
+    // Charts look back up to 12 months from today, so load this year and last year.
+    const y = new Date().getFullYear();
+    habits = mergeHabits(await Promise.all([fetchYear(y - 1), fetchYear(y)]));
+    window._habits = habits;
+    fillWeightSelect(habits);
+    document.getElementById("gridwrap").innerHTML =
+      view === "reps" ? buildRepsView(habits) : buildTrendView(habits);
+    loadHidden();
+    return;
+  }
+  if(view === "week" || view === "3day"){
+    const dates = datesForView();
+    const years = [...new Set(dates.map(d => d.slice(0,4)))];
+    const datasets = await Promise.all(years.map(y => fetchYear(+y)));
+    habits = mergeHabits(datasets);
+    window._habits = habits;
+    renderGrid(habits.length ? buildDayGrid(habits, dates) : null, habits);
+  } else if(view === "month"){
+    const y = cursor.getFullYear();
+    const ds = await fetchYear(y);
+    habits = ds.habits;
+    window._habits = habits;
+    renderGrid(habits.length ? buildDayGrid(habits, datesForView()) : null, habits);
+  } else {
+    const ds = await fetchYear(cursor.getFullYear());
+    habits = ds.habits;
+    window._habits = habits;
+    renderGrid(habits.length ? buildYearTable(habits) : null, habits, true);
+  }
+
+  fillWeightSelect(habits);
+  loadHidden();
+
+  if(focusAfterLoad){
+    const el = document.getElementById(focusAfterLoad);
+    if(el) el.focus();
+    focusAfterLoad = null;
+  }
+}
+
+function renderGrid(gridHtml, habits, hideQuickLog){
+  const wrap = document.getElementById("gridwrap");
+  if(!gridHtml){ wrap.innerHTML = `<div class="empty">No habits yet. Add one below.</div>`; return; }
+  wrap.innerHTML = gridHtml + (hideQuickLog ? "" : quickLogStrip(habits));
+}
+
+let focusAfterLoad = null;
+
+function cellKey(e, td, id, dateKey, unit, current){
+  if(td.querySelector("input")) return;          // already editing; input handles keys
+  if(e.key === "Tab"){                            // Tab / Shift+Tab -> right / left
+    e.preventDefault();
+    const n = navTarget(td, e.shiftKey ? "left" : "right");
+    if(n) n.focus();
+  } else if(e.key === "Enter"){                   // Enter / Shift+Enter -> down / up
+    e.preventDefault();
+    const n = navTarget(td, e.shiftKey ? "up" : "down");
+    if(n) n.focus();
+  } else if(e.key === " "){                       // Space opens the editor
+    e.preventDefault();
+    editCell(td, id, dateKey, unit, current);
+  } else if(/^[0-9.-]$/.test(e.key)){
+    editCell(td, id, dateKey, unit, current, e.key);   // start typing straight away
+  }
+}
+
+// Excel-style neighbour lookup. dir: right|left|up|down. Skips non-focusable
+// (future) day cells and stops at the row's habit-name / total columns.
+function navTarget(td, dir){
+  if(dir === "right" || dir === "left"){
+    let n = td;
+    while(true){
+      n = dir === "right" ? n.nextElementSibling : n.previousElementSibling;
+      if(!n) return null;
+      if(!n.classList.contains("day")) return null;   // reached habit-name or total cell
+      if(n.hasAttribute("tabindex")) return n;        // focusable (non-future) day cell
+    }
+  }
+  const habits = window._habits || [];
+  const idx = habits.findIndex(h => h.id === +td.dataset.hid);
+  if(idx < 0) return null;
+  const date = td.dataset.date;
+  const step = dir === "down" ? 1 : -1;
+  for(let i = idx + step; i >= 0 && i < habits.length; i += step){
+    const cell = document.getElementById(`cell-${habits[i].id}-${date}`);
+    if(cell && cell.classList.contains("day") && cell.hasAttribute("tabindex")) return cell;
+  }
+  return null;
+}
+
+// Open the inline editor on an already-focused day cell, seeding it with whatever
+// that day currently shows. Used to chain Enter / Tab entry across cells.
+// Checkbox habits and future days are skipped.
+function openEditorOn(cell){
+  if(!cell || !cell.classList.contains("day")) return;
+  if(cell.dataset.type === "check" || cell.classList.contains("future")) return;
+  if(cell.querySelector("input")) return;
+  const txt = cell.textContent.trim();
+  const cur = (txt === "–" || txt === "-") ? "-" : txt;   // en dash = missed
+  editCell(cell, +cell.dataset.hid, cell.dataset.date, cell.dataset.unit, cur);
+}
+
+function editCell(td, id, dateKey, unit, current, seed){
+  if(window._suppressClick) return;              // a drag just happened; ignore the click
+  if(td.querySelector("input")) return;          // already editing
+  const original = td.innerHTML;
+  const initVal = seed !== undefined ? seed : (current || "");
+  const isMeas = td.dataset.type === "measure";   // measurements accept decimals (165.5)
+  td.innerHTML = `<input type="text" inputmode="${isMeas ? "decimal" : "numeric"}" value="${initVal}" placeholder="0 = delete">`;
+  const inp = td.querySelector("input");
+  let done = false;
+  setTimeout(() => {
+    inp.focus();
+    if(seed === undefined) inp.select();
+    else inp.setSelectionRange(inp.value.length, inp.value.length);
+  }, 0);
+
+  async function commit(save, refocus){
+    if(done) return;
+    done = true;
+    const doFocus = () => {
+      if(refocus === "self"){ td.focus(); return; }
+      if(!refocus) return;
+      const n = navTarget(td, refocus);            // "down" | "up" | "left" | "right"
+      (n || td).focus();
+      // Chain straight into the next cell's editor so Enter/Tab lets you keep
+      // typing without clicking back in.
+      if(n) openEditorOn(n);
+    };
+    if(!save){ td.innerHTML = original; doFocus(); return; }
+    const raw = inp.value.trim().toLowerCase();
+    let payload, display;
+    if(raw === ""){                       // erase -> blank (no row)
+      payload = {value: 0, missed: false, clear: true};
+      display = "";
+    } else if(raw === "-" || raw === "x"){ // missed
+      payload = {value: 0, missed: true};
+      display = "-";
+    } else {                               // logged number (0 allowed, shows as 0)
+      const n = isMeas ? Math.round(parseFloat(raw) * 100) / 100 : parseInt(raw, 10);
+      if(isNaN(n)){ td.innerHTML = original; doFocus(); return; }
+      payload = {value: n, missed: false};
+      display = n;
+    }
+    const ok = await setDay(id, payload, dateKey, unit);
+    if(!ok){ td.innerHTML = original; return; }
+    td.innerHTML = cellMark(display, cellColor(id));
+    // refresh the edit seed so reopening prefills correctly
+    const seedNow = display === "-" ? "'-'" : (display === "" ? "''" : display);
+    td.setAttribute("onclick", `editCell(this, ${id}, '${dateKey}', '${unit}', ${seedNow})`);
+    td.setAttribute("onkeydown", `cellKey(event, this, ${id}, '${dateKey}', '${unit}', ${seedNow})`);
+    refreshStats();
+    doFocus();
+  }
+
+  inp.addEventListener("keydown", e => {
+    e.stopPropagation();
+    if(e.key === "Escape"){ commit(false, "self"); }
+    else if(e.key === "Enter"){ e.preventDefault(); commit(true, e.shiftKey ? "up" : "down"); }
+    else if(e.key === "Tab"){ e.preventDefault(); commit(true, e.shiftKey ? "left" : "right"); }
+  });
+  inp.addEventListener("blur", () => { commit(true, false); });
+}
+
+function cellColor(id){
+  const h = (window._habits || []).find(x => x.id === id);
+  return h ? h.color : "var(--ink)";
+}
+
+function focusDown(id, dateKey){
+  const habits = window._habits || [];
+  const idx = habits.findIndex(h => h.id === id);
+  if(idx < 0 || idx + 1 >= habits.length) return null;   // last row: stay
+  return document.getElementById(`cell-${habits[idx + 1].id}-${dateKey}`);
+}
+
+function updateRowTotal(cellTd, unit){
+  const tr = cellTd.closest("tr");
+  if(!tr) return;
+  let sum = 0;
+  tr.querySelectorAll("td.day").forEach(td => {
+    const n = parseInt(td.textContent.trim(), 10);
+    if(!isNaN(n)) sum += n;
+  });
+  const totalCell = tr.querySelector("td.total-cell");
+  if(totalCell){
+    totalCell.innerHTML = `<b>${sum}</b><br><span style="font-size:.68rem;color:var(--muted)">${unit}</span>`;
+  }
+}
+
+async function setDay(id, payload, dateKey, unit){
+  const res = await fetch("/api/day", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({habit_id:id, value:payload.value, missed:payload.missed, clear:!!payload.clear, date:dateKey})});
+  const out = await res.json();
+  if(res.ok){
+    invalidateCache();
+    const msg = out.state === "missed" ? `Marked ${dateKey} missed.`
+      : out.state === "blank" ? `Cleared ${dateKey}.`
+      : `Set ${dateKey} to ${out.day_total} ${unit}.`;
+    document.getElementById("flash").textContent = msg;
+  } else {
+    document.getElementById("flash").textContent = out.error;
+  }
+  return res.ok;
+}
+
+async function postLog(id, value, dateKey, unit){
+  const res = await fetch("/api/log", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({habit_id:id, value:value, date:dateKey})});
+  const out = await res.json();
+  document.getElementById("flash").textContent =
+    res.ok ? `Logged. ${out.date} total: ${out.day_total} ${unit}` : out.error;
+  return res.ok;
+}
+
+function quickLogStrip(habits){
+  // Quick log ADDS to the day, which is wrong for measurements; they are entered in the grid.
+  const items = habits.filter(h => h.input_type !== "measure").map(h => `
+    <div class="ql-item">
+      <label for="ql-${h.id}">${h.name} <span style="color:var(--muted)">(${h.unit})</span></label>
+      <input type="number" id="ql-${h.id}">
+    </div>`).join("");
+  return `<details class="collapsible" open>
+    <summary>Quick log &middot; today (adds to the day)</summary>
+    <div class="quicklog">
+      ${items}
+      <button class="btn primary" type="button" onclick="logAll()">Log all</button>
+      <button id="dupBtn" class="btn" type="button" onclick="duplicateYesterday()">Duplicate yesterday</button>
+    </div>
+  </details>`;
+}
+
+async function logAll(){
+  const today = isoToday();
+  let logged = 0;
+  for(const h of window._habits){
+    const inp = document.getElementById(`ql-${h.id}`);
+    if(!inp) continue;                             // measurements have no quick-log box
+    const v = parseInt(inp.value, 10);
+    if(!v) continue;
+    if(await postLog(h.id, v, today, h.unit)) logged++;
+  }
+  document.getElementById("flash").textContent = logged
+    ? `Logged ${logged} habit${logged > 1 ? "s" : ""} for ${today}.`
+    : "Nothing to log. Enter a value first.";
+  invalidateCache();
+  load();
+}
+
+async function addHabit(e){
+  e.preventDefault();
+  const sel = document.getElementById("f-type").value;
+  // "dose" is stored as a measurement: one decimal amount per day with a unit (mg, mcg, units).
+  const input_type = (sel === "check" || sel === "measure") ? sel : sel === "dose" ? "measure" : "number";
+  const unitIn = document.getElementById("f-unit").value.trim();
+  const body = {
+    name: document.getElementById("f-name").value,
+    unit: input_type === "check" ? "days" : input_type === "measure" ? (unitIn || (sel === "dose" ? "mg" : "lbs")) : "reps",
+    input_type: input_type,
+    profile: profile
+  };
+  const res = await fetch("/api/habits", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(body)});
+  const out = await res.json();
+  document.getElementById("flash").textContent = res.ok ? "" : out.error;
+  if(res.ok){ e.target.reset(); document.getElementById("f-unit").style.display = "none"; }
+  invalidateCache();
+  load();
+  return false;
+}
+
+async function removeHabit(id, name){
+  if(!confirm(`Archive "${name}"? It disappears from the grid but its data stays. Restore it anytime from "Archived habits" at the bottom of the page.`)) return;
+  await fetch(`/api/habits/${id}`, {method:"DELETE"});
+  invalidateCache();
+  load();
+}
+
+async function deleteHabit(id, name){
+  if(!confirm(`Permanently DELETE "${name}" and all its logged data? This cannot be undone.`)) return;
+  await fetch(`/api/habits/${id}/delete`, {method:"POST"});
+  document.getElementById("flash").textContent = `Deleted "${name}".`;
+  invalidateCache();
+  load();
+}
+
+async function moveHabit(id, direction){
+  await fetch(`/api/habits/${id}/move`, {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({direction})});
+  invalidateCache();
+  load();
+}
+
+async function renameHabit(id, oldName){
+  const name = prompt("Rename habit:", oldName);
+  if(name === null) return;
+  const trimmed = name.trim();
+  if(!trimmed || trimmed === oldName) return;
+  const res = await fetch(`/api/habits/${id}/rename`, {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({name: trimmed})});
+  const out = await res.json();
+  document.getElementById("flash").textContent = res.ok ? "" : out.error;
+  invalidateCache();
+  load();
+}
+
+// ----- Click-and-drag fill (copy one cell's value across a row) -----
+let dragStart = null, dragging = false, dragCells = [];
+
+function cellState(td){
+  const txt = td.textContent.trim();
+  if(txt === "") return {value:0, missed:false, clear:true, display:""};
+  if(txt === "\u2013" || txt === "-") return {value:0, missed:true, display:"-"};
+  const n = parseFloat(txt);                                  // decimals for measurements
+  if(!isNaN(n)) return {value:n, missed:false, display:n};   // includes 0
+  return {value:0, missed:false, clear:true, display:""};
+}
+
+function clearDragVisual(){
+  document.querySelectorAll("td.day.dragsel").forEach(td => td.classList.remove("dragsel"));
+}
+
+function selectRange(a, b){
+  clearDragVisual();
+  const habits = window._habits || [];
+  const ids = habits.map(h => h.id);
+  const ai = ids.indexOf(+a.dataset.hid), bi = ids.indexOf(+b.dataset.hid);
+  if(ai < 0 || bi < 0) return;
+  const r0 = Math.min(ai, bi), r1 = Math.max(ai, bi);
+  const ad = a.dataset.date, bd = b.dataset.date;
+  const lo = ad <= bd ? ad : bd, hi = ad <= bd ? bd : ad;
+  const ym = lo.slice(0, 8);                       // 'YYYY-MM-' (single month view)
+  const startDay = parseInt(lo.slice(-2), 10), endDay = parseInt(hi.slice(-2), 10);
+  dragCells = [];
+  for(let ri = r0; ri <= r1; ri++){
+    for(let day = startDay; day <= endDay; day++){
+      const key = ym + String(day).padStart(2, "0");
+      const cell = document.getElementById(`cell-${ids[ri]}-${key}`);
+      if(cell && !cell.classList.contains("future")){
+        cell.classList.add("dragsel");
+        dragCells.push(cell);
+      }
+    }
+  }
+}
+
+async function fillCells(srcTd, cells){
+  const st = cellState(srcTd);
+  let filled = 0;
+  for(const td of cells){
+    if(td.dataset.type === "check") continue;      // drag-fill is for numeric habits
+    const id = +td.dataset.hid, dateKey = td.dataset.date, unit = td.dataset.unit;
+    const ok = await setDay(id, {value:st.value, missed:st.missed, clear:st.clear}, dateKey, unit);
+    if(!ok) continue;
+    td.innerHTML = cellMark(st.display, cellColor(id));
+    const seed = st.display === "-" ? "'-'" : (st.display === "" ? "''" : st.display);
+    td.setAttribute("onclick", `editCell(this, ${id}, '${dateKey}', '${unit}', ${seed})`);
+    td.setAttribute("onkeydown", `cellKey(event, this, ${id}, '${dateKey}', '${unit}', ${seed})`);
+    filled++;
+  }
+  refreshStats();
+  const label = st.display === "-" ? "missed" : (st.display === "" ? "blank" : st.display);
+  document.getElementById("flash").textContent = `Copied ${label} to ${filled} cell(s).`;
+}
+
+function initDrag(){
+  const wrap = document.getElementById("gridwrap");
+  wrap.addEventListener("mousedown", e => {
+    const td = e.target.closest("td.day");
+    if(!td || td.classList.contains("future") || td.querySelector("input") || td.dataset.type === "check") return;
+    dragStart = td; dragging = false; dragCells = [td];
+    wrap.classList.add("dragging");
+  });
+  wrap.addEventListener("mouseover", e => {
+    if(!dragStart) return;
+    const td = e.target.closest("td.day");
+    if(!td || td.classList.contains("future")) return;
+    if(td !== dragStart) dragging = true;
+    selectRange(dragStart, td);
+  });
+  document.addEventListener("mouseup", async () => {
+    if(!dragStart) return;
+    const started = dragging && dragCells.length > 1;
+    const cells = dragCells.slice();
+    const src = dragStart;
+    document.getElementById("gridwrap").classList.remove("dragging");
+    clearDragVisual();
+    dragStart = null; dragging = false; dragCells = [];
+    if(started){
+      window._suppressClick = true;                // block the click-to-edit that follows
+      setTimeout(() => { window._suppressClick = false; }, 0);
+      await fillCells(src, cells);
+    }
+  });
+}
+
+// ===================== Settings: height + weight measurement (BMI) =====================
+let _settings = {};
+async function loadSettings(){
+  try{
+    const r = await fetch(`/api/settings?profile=${encodeURIComponent(profile)}`);
+    _settings = await r.json();
+  }catch(e){ _settings = {}; }
+  const h = parseFloat(_settings.height_in);
+  document.getElementById("s-ft").value = h ? Math.floor(h / 12) : "";
+  document.getElementById("s-in").value = h ? Math.round((h % 12) * 10) / 10 : "";
+}
+// Saved choice, else the first measurement whose name contains "weight".
+function resolveWeightId(habits){
+  if(_settings.weight_habit_id) return String(_settings.weight_habit_id);
+  const g = habits.find(h => h.input_type === "measure" && /weight/i.test(h.name));
+  return g ? String(g.id) : "";
+}
+function fillWeightSelect(habits){
+  const sel = document.getElementById("s-weight");
+  const meas = habits.filter(h => h.input_type === "measure");
+  sel.innerHTML = `<option value="">(none)</option>` +
+    meas.map(h => `<option value="${h.id}">${h.name} (${h.unit})</option>`).join("");
+  sel.value = resolveWeightId(habits);
+  const b = bmiHabit(habits);
+  const keys = b ? Object.keys(b.daily).sort() : [];
+  document.getElementById("s-bmi").textContent = keys.length
+    ? `Latest BMI: ${b.daily[keys[keys.length - 1]]} (${keys[keys.length - 1]})` : "";
+}
+async function saveSettings(){
+  const ft = parseFloat(document.getElementById("s-ft").value) || 0;
+  const inch = parseFloat(document.getElementById("s-in").value) || 0;
+  const total = ft * 12 + inch;
+  await fetch("/api/settings", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({profile, height_in: total || "", weight_habit_id: document.getElementById("s-weight").value})});
+  document.getElementById("flash").textContent = "Height & BMI settings saved.";
+  load();
+}
+// lbs: 703 x lb / in^2.  kg: kg / m^2 (height is stored in inches).
+function bmiFrom(w, unit, hIn){
+  const v = /^kg/i.test(unit || "") ? w / Math.pow(hIn * 0.0254, 2) : 703 * w / (hIn * hIn);
+  return Math.round(v * 10) / 10;
+}
+// A virtual "habit" whose daily values are BMI, derived from the weight measurement.
+function bmiHabit(habits){
+  const hIn = parseFloat(_settings.height_in);
+  const w = habits.find(h => String(h.id) === resolveWeightId(habits));
+  if(!hIn || !w) return null;
+  const daily = {};
+  for(const [k, v] of Object.entries(w.daily)){
+    if(v > 0 && !(w.missed && w.missed[k])) daily[k] = bmiFrom(v, w.unit, hIn);
+  }
+  return {id:"bmi", name:"BMI (calculated)", unit:"BMI", color:"#6b5b95", input_type:"measure", daily, missed:{}};
+}
+
+// ===================== Chart views (Reps, Trend) — plain SVG, no libraries =====================
+let chartRange = localStorage.getItem("ht_crange") || "M";
+function setChartRange(r){ chartRange = r; localStorage.setItem("ht_crange", r); load(); }
+function iso(d){ return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()); }
+// A logged (non-missed) value for one day, else null.
+function dayVal(h, k){
+  if(!Object.prototype.hasOwnProperty.call(h.daily, k)) return null;
+  if(h.missed && h.missed[k]) return null;
+  return +h.daily[k];
+}
+// W = 7 days, M = 30 days (one point per day); 6M = 26 weeks; Y = 12 months. All end today.
+function chartBuckets(range){
+  const t = new Date(); t.setHours(0,0,0,0);
+  const out = [];
+  if(range === "W" || range === "M"){
+    const n = range === "W" ? 7 : 30;
+    for(let i = n - 1; i >= 0; i--){
+      const d = new Date(t); d.setDate(t.getDate() - i);
+      const label = range === "W" ? ["Su","Mo","Tu","We","Th","Fr","Sa"][d.getDay()]
+                                  : (i % 5 === 0 ? String(d.getDate()) : "");
+      out.push({label, days:[iso(d)], title: iso(d)});
+    }
+  } else if(range === "6M"){
+    const ws = weekStart(t);
+    for(let i = 25; i >= 0; i--){
+      const s = new Date(ws); s.setDate(ws.getDate() - 7 * i);
+      const days = [];
+      for(let j = 0; j < 7; j++){ const d = new Date(s); d.setDate(s.getDate() + j); days.push(iso(d)); }
+      out.push({label: s.getDate() <= 7 ? MONTHS_SHORT[s.getMonth()] : "", days, title: "Week of " + iso(s)});
+    }
+  } else {
+    for(let i = 11; i >= 0; i--){
+      const m = new Date(t.getFullYear(), t.getMonth() - i, 1);
+      const n = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+      const days = [];
+      for(let dd = 1; dd <= n; dd++) days.push(`${m.getFullYear()}-${pad(m.getMonth()+1)}-${pad(dd)}`);
+      out.push({label: MONTHS_SHORT[m.getMonth()].charAt(0), days, title: MONTHS_SHORT[m.getMonth()] + " " + m.getFullYear()});
+    }
+  }
+  return out;
+}
+function rangeText(buckets){
+  const a = new Date(buckets[0].days[0] + "T00:00:00"), b = new Date();
+  if(chartRange === "Y") return `${MONTHS_SHORT[a.getMonth()]} ${a.getFullYear()} – ${MONTHS_SHORT[b.getMonth()]} ${b.getFullYear()}`;
+  return `${MONTHS_SHORT[a.getMonth()]} ${a.getDate()}, ${a.getFullYear()} – ${MONTHS_SHORT[b.getMonth()]} ${b.getDate()}, ${b.getFullYear()}`;
+}
+function rangeTabs(){
+  return `<div class="view-tabs">` + ["W","M","6M","Y"].map(r =>
+    `<button class="${r === chartRange ? "on" : ""}" onclick="setChartRange('${r}')">${r}</button>`).join("") + `</div>`;
+}
+
+// Axis helpers. The SVG is drawn in a fixed 720x260 box and scaled to the page width.
+const CW = 720, CH = 260, PL = 10, PR = 46, PT = 14, PB = 28;
+function niceScale(min, max){
+  if(min === max){ min -= 1; max += 1; }
+  const raw = (max - min) / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))), norm = raw / mag;
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+  const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step;
+  const ticks = [];
+  for(let v = lo; v <= hi + step / 2; v += step) ticks.push(Math.round(v * 1000) / 1000);
+  return {lo, hi, ticks};
+}
+function gridSVG(sc, xs, labels){
+  const iw = CW - PL - PR, ih = CH - PT - PB;
+  const y = v => PT + ih - (v - sc.lo) / (sc.hi - sc.lo) * ih;
+  let g = "";
+  for(const t of sc.ticks){
+    g += `<line x1="${PL}" x2="${CW - PR}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line-soft)"/>` +
+         `<text x="${CW - PR + 6}" y="${y(t) + 4}" font-size="13">${t}</text>`;
+  }
+  xs.forEach((x, i) => {
+    if(!labels[i]) return;
+    g += `<line x1="${x}" x2="${x}" y1="${PT}" y2="${PT + ih}" stroke="var(--line-soft)" stroke-dasharray="2 3"/>` +
+         `<text x="${x}" y="${CH - 8}" font-size="13" text-anchor="middle">${labels[i]}</text>`;
+  });
+  return {g, y};
+}
+function lineChartSVG(pts, color){
+  const vals = pts.filter(p => p.value !== null).map(p => p.value);
+  if(!vals.length) return `<div class="empty">No data logged in this range.</div>`;
+  const sc = niceScale(Math.min(...vals), Math.max(...vals));
+  const iw = CW - PL - PR, n = pts.length;
+  const xs = pts.map((p, i) => PL + (n === 1 ? iw / 2 : i * iw / (n - 1)));
+  const {g, y} = gridSVG(sc, xs, pts.map(p => p.label));
+  const on = pts.map((p, i) => p.value === null ? null : [xs[i], y(p.value), p]).filter(Boolean);
+  const path = on.map((q, i) => (i ? "L" : "M") + q[0].toFixed(1) + " " + q[1].toFixed(1)).join(" ");
+  const dots = on.map(q => `<circle cx="${q[0]}" cy="${q[1]}" r="4" fill="var(--paper)" stroke="${color}" stroke-width="2">` +
+    `<title>${q[2].title}: ${q[2].value}</title></circle>`).join("");
+  return `<svg class="chart-svg" viewBox="0 0 ${CW} ${CH}">${g}` +
+    `<path d="${path}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round"/>${dots}</svg>`;
+}
+function barChartSVG(pts, stacks, series){
+  const totals = stacks.map(s => s.reduce((a, b) => a + b, 0));
+  const mx = Math.max(0, ...totals);
+  if(!mx) return `<div class="empty">No reps logged in this range for the selected habits.</div>`;
+  const sc = niceScale(0, mx);
+  const iw = CW - PL - PR, n = pts.length, slot = iw / n, bw = Math.max(3, slot * 0.62);
+  const xs = pts.map((p, i) => PL + (i + 0.5) * slot);
+  const {g, y} = gridSVG(sc, xs, pts.map(p => p.label));
+  let bars = "";
+  stacks.forEach((s, i) => {
+    let base = 0;
+    s.forEach((v, j) => {
+      if(!v) return;
+      const top = y(base + v), bot = y(base);
+      bars += `<rect x="${xs[i] - bw / 2}" y="${top}" width="${bw}" height="${Math.max(0, bot - top)}" fill="${series[j].color}">` +
+        `<title>${pts[i].title} · ${series[j].name}: ${v}</title></rect>`;
+      base += v;
+    });
+  });
+  return `<svg class="chart-svg" viewBox="0 0 ${CW} ${CH}">${g}${bars}</svg>`;
+}
+
+// ---- Trend view: one habit (or BMI) averaged per day/week/month, like a health app ----
+let trendId = localStorage.getItem("ht_trend") || "";
+function setTrend(id){ trendId = id; localStorage.setItem("ht_trend", id); load(); }
+function buildTrendView(habits){
+  const bmi = bmiHabit(habits);
+  const all = habits.filter(h => h.input_type !== "check").concat(bmi ? [bmi] : []);
+  if(!all.length) return `<div class="empty">No number or measurement habits yet.</div>`;
+  const h = all.find(x => String(x.id) === trendId) || all.find(x => x.input_type === "measure") || all[0];
+  const buckets = chartBuckets(chartRange);
+  let sum = 0, cnt = 0;
+  const pts = buckets.map(b => {
+    let s = 0, c = 0;
+    for(const k of b.days){ const v = dayVal(h, k); if(v !== null){ s += v; c++; } }
+    sum += s; cnt += c;
+    return {label: b.label, title: b.title, value: c ? Math.round(s / c * 10) / 10 : null};
+  });
+  const avg = cnt ? Math.round(sum / cnt * 10) / 10 : "–";
+  const opts = all.map(x => `<option value="${x.id}" ${x === h ? "selected" : ""}>${x.name}</option>`).join("");
+  const note = h.input_type === "measure" ? "" : " per logged day";
+  return `<div class="chart-ctl"><select onchange="setTrend(this.value)">${opts}</select>${rangeTabs()}</div>
+    <div class="chart-head"><div class="ch-k">Average${note}</div>
+      <div class="ch-v">${avg}<small>${h.unit}</small></div><div class="ch-r">${rangeText(buckets)}</div></div>
+    ${lineChartSVG(pts, h.color)}
+    <p style="font-size:.78rem;color:var(--muted);margin-top:8px">
+      W and M plot each day; 6M plots weekly averages; Y plots monthly averages. Missed days are ignored.</p>`;
+}
+
+// ---- Reps view: stacked bars of combined reps for the ticked habits ----
+function repsPicks(){ try{ return JSON.parse(localStorage.getItem("ht_reps_" + profile) || "null"); }catch(e){ return null; } }
+function toggleRepsPick(id, on){
+  const nums = (window._habits || []).filter(h => h.input_type === "number").map(h => h.id);
+  let picks = repsPicks() || nums;
+  picks = on ? [...new Set(picks.concat(id))] : picks.filter(x => x !== id);
+  localStorage.setItem("ht_reps_" + profile, JSON.stringify(picks));
+  load();
+}
+function buildRepsView(habits){
+  const nums = habits.filter(h => h.input_type === "number");
+  if(!nums.length) return `<div class="empty">No rep-counting habits yet.</div>`;
+  const picks = repsPicks() || nums.map(h => h.id);
+  const sel = nums.filter(h => picks.includes(h.id));
+  const buckets = chartBuckets(chartRange);
+  const stacks = buckets.map(b => sel.map(h => b.days.reduce((a, k) => a + (dayVal(h, k) || 0), 0)));
+  const total = stacks.reduce((a, s) => a + s.reduce((x, y) => x + y, 0), 0);
+  const boxes = nums.map(h => `<label><input type="checkbox" ${picks.includes(h.id) ? "checked" : ""}
+      onchange="toggleRepsPick(${h.id}, this.checked)"><span class="sw" style="background:${h.color}"></span>${h.name}</label>`).join("");
+  return `<div class="chart-ctl">${rangeTabs()}</div>
+    <div class="chart-picks">${boxes}</div>
+    <div class="chart-head"><div class="ch-k">Total reps</div>
+      <div class="ch-v">${total.toLocaleString()}<small>reps</small></div><div class="ch-r">${rangeText(buckets)}</div></div>
+    ${barChartSVG(buckets, stacks, sel)}
+    <p style="font-size:.78rem;color:var(--muted);margin-top:8px">
+      Bars stack the ticked habits. W and M show days; 6M shows weeks; Y shows months. Hover a bar for its number.</p>`;
+}
+
+initDrag();
+// Reflect stored choices in the controls before first render.
+document.getElementById("totalsSel").value = totalsWindow;
+document.querySelectorAll("#profileTabs button")
+  .forEach(b => b.classList.toggle("on", b.dataset.profile === profile));
+document.querySelectorAll("#viewTabs button")
+  .forEach(b => b.classList.toggle("on", b.dataset.view === view));
+const savedColW = localStorage.getItem("ht_colw") || "26";
+document.getElementById("colWidth").value = savedColW;
+setColWidth(savedColW);
+loadProfileNames();
+load();
+</script>
+</body>
+</html>
